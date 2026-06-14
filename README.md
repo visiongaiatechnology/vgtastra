@@ -12,7 +12,7 @@
 # VGTAstra Agent System
 ### Agentic WordPress Engineering Console
 
-[![License](https://img.shields.io/badge/Licence-AGPLv3-red?style=for-the-badge)](#)
+[![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](#)
 [![Version](https://img.shields.io/badge/Version-1.3.0--beta.4-yellow?style=for-the-badge)](#)
 [![PHP](https://img.shields.io/badge/PHP-8.1+-777BB4?style=for-the-badge&logo=php)](https://php.net)
 [![WordPress](https://img.shields.io/badge/WordPress-6.0+-21759B?style=for-the-badge&logo=wordpress)](https://wordpress.org)
@@ -66,9 +66,6 @@ To use VGTAstra with its full feature set, current roadmap, and Throne Guard com
 
 ---
 
-<img width="2560" height="1235" alt="image" src="https://github.com/user-attachments/assets/4693cf52-eb2b-41c4-82d9-b51dec951fac" />
-
-
 ## 🔍 What is VGTAstra?
 
 The WordPress plugin ecosystem has no native toolchain for structured, security-audited AI-assisted development. Plugin modification typically happens through raw file editors, external IDEs, or unchecked AI completions with no audit trail and no operator review gate.
@@ -95,9 +92,6 @@ VGTAstra:
 ```
 
 VGTAstra is not a chatbot. It is a **rollenased development and audit console** for controlled WordPress engineering.
-
-<img width="2554" height="1173" alt="image" src="https://github.com/user-attachments/assets/086e386e-1cfa-410d-81ec-7855ad70f063" />
-
 
 ---
 
@@ -144,12 +138,8 @@ Commit Guard
          ↓
 Patch Applied or Workspace-Staged
 ```
-<img width="2556" height="1179" alt="image" src="https://github.com/user-attachments/assets/8fbf120c-ec75-47a0-8256-00de6ca88366" />
 
 ---
-
-<img width="493" height="856" alt="image" src="https://github.com/user-attachments/assets/ad14a916-29c2-491e-a65e-ee00b31ff8a6" />
-
 
 ## 🤖 Agent Roles
 
