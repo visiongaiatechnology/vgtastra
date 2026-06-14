@@ -153,9 +153,9 @@ Executes approved plans. All output must use the `FILE_WRITE` protocol — no un
 
 ```
 FILE_WRITE: relative/path/to/file.php
-```php
+``php
 // full file content here
-```
+
 ```
 
 ### Auditor
