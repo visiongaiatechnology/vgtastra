@@ -66,6 +66,9 @@ To use VGTAstra with its full feature set, current roadmap, and Throne Guard com
 
 ---
 
+<img width="2560" height="1235" alt="image" src="https://github.com/user-attachments/assets/4693cf52-eb2b-41c4-82d9-b51dec951fac" />
+
+
 ## 🔍 What is VGTAstra?
 
 The WordPress plugin ecosystem has no native toolchain for structured, security-audited AI-assisted development. Plugin modification typically happens through raw file editors, external IDEs, or unchecked AI completions with no audit trail and no operator review gate.
