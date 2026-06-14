@@ -96,6 +96,9 @@ VGTAstra:
 
 VGTAstra is not a chatbot. It is a **rollenased development and audit console** for controlled WordPress engineering.
 
+<img width="2554" height="1173" alt="image" src="https://github.com/user-attachments/assets/086e386e-1cfa-410d-81ec-7855ad70f063" />
+
+
 ---
 
 ## 🏛️ Architecture
@@ -141,8 +144,12 @@ Commit Guard
          ↓
 Patch Applied or Workspace-Staged
 ```
+<img width="2556" height="1179" alt="image" src="https://github.com/user-attachments/assets/8fbf120c-ec75-47a0-8256-00de6ca88366" />
 
 ---
+
+<img width="493" height="856" alt="image" src="https://github.com/user-attachments/assets/ad14a916-29c2-491e-a65e-ee00b31ff8a6" />
+
 
 ## 🤖 Agent Roles
 
