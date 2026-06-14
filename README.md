@@ -12,7 +12,7 @@
 # VGTAstra Agent System
 ### Agentic WordPress Engineering Console
 
-[![License](https://img.shields.io/badge/AGPLv3-red?style=for-the-badge)](#)
+[![License](https://img.shields.io/badge/Licence-AGPLv3-red?style=for-the-badge)](#)
 [![Version](https://img.shields.io/badge/Version-1.3.0--beta.4-yellow?style=for-the-badge)](#)
 [![PHP](https://img.shields.io/badge/PHP-8.1+-777BB4?style=for-the-badge&logo=php)](https://php.net)
 [![WordPress](https://img.shields.io/badge/WordPress-6.0+-21759B?style=for-the-badge&logo=wordpress)](https://wordpress.org)
