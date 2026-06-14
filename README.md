@@ -66,6 +66,9 @@ To use VGTAstra with its full feature set, current roadmap, and Throne Guard com
 
 ---
 
+<img width="2558" height="1160" alt="image" src="https://github.com/user-attachments/assets/0f1fcdb6-ae9b-4a54-9268-c0ab08c03771" />
+
+
 ## 🔍 What is VGTAstra?
 
 The WordPress plugin ecosystem has no native toolchain for structured, security-audited AI-assisted development. Plugin modification typically happens through raw file editors, external IDEs, or unchecked AI completions with no audit trail and no operator review gate.
@@ -94,6 +97,9 @@ VGTAstra:
 VGTAstra is not a chatbot. It is a **rollenased development and audit console** for controlled WordPress engineering.
 
 ---
+
+<img width="2542" height="1160" alt="image" src="https://github.com/user-attachments/assets/241f95c0-aa44-42cb-9b48-81db059a533e" />
+
 
 ## 🏛️ Architecture
 
@@ -138,6 +144,9 @@ Commit Guard
          ↓
 Patch Applied or Workspace-Staged
 ```
+
+<img width="470" height="850" alt="image" src="https://github.com/user-attachments/assets/3e68b939-b4b7-4819-b429-3ce2f4eec158" />
+
 
 ---
 
