@@ -320,6 +320,7 @@ trait PatchVaultTrait
 
     private function stageFileWritesFromContent(string $pluginSlug, string $actor, string $model, string $content): array
     {
+        $this->lastRejectedWrites = [];
         if ($pluginSlug === '') {
             return [];
         }
@@ -332,17 +333,27 @@ trait PatchVaultTrait
 
         foreach ($matches as $match) {
             $rawPath = \trim($match[1] !== '' ? $match[1] : $match[2]);
-            $relativePath = $this->sanitizeRelativePath($rawPath);
-            $code = \trim((string) $match[5]);
-            if ($code === '' || \strlen($code) > self::MAX_WRITE_BYTES) {
+            $normalizedPath = $this->normalizeAiWritePath($rawPath, $pluginSlug);
+
+            try {
+                $relativePath = $this->sanitizeRelativePath($normalizedPath);
+                $code = \trim((string) $match[5]);
+                if ($code === '' || \strlen($code) > self::MAX_WRITE_BYTES) {
+                    throw new ValidationException('Write payload size rejected.');
+                }
+
+                $id = \bin2hex(\random_bytes(32));
+            } catch (\Throwable $e) {
+                $this->recordRejectedWrite([
+                    'path' => $rawPath,
+                    'normalized_path' => $normalizedPath,
+                    'reason' => $e instanceof ValidationException ? $e->getMessage() : 'Patch staging rejected.',
+                    'classification' => $this->classifyAiWritePathFailure($rawPath, $normalizedPath, $e),
+                ]);
+                $this->logInternalThrowable('PATCH_REJECTED', $this->buildOpaqueErrorCode($e), $e);
                 continue;
             }
 
-            try {
-                $id = \bin2hex(\random_bytes(32));
-            } catch (\Throwable $e) {
-                throw new SecurityException('Patch token generation failed.');
-            }
             $vault[$id] = [
                 'id' => $id,
                 'path' => $relativePath,

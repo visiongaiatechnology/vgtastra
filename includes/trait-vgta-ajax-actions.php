@@ -95,7 +95,9 @@ trait AjaxActionsTrait
             );
 
             $proposals = $this->stageFileWritesFromContent($pluginSlug, 'Assistant', $model, $apiResponse['stage_content']);
+            $rejectedWrites = $this->consumeRejectedWrites();
             $memory = $this->persistAssistantExchange($pluginSlug, $sessionId, $message, 'Assistant', $model, $apiResponse, $proposals);
+            $memoryWarning = $this->consumeMemoryWarning();
 
             return [
                 'role' => 'Assistant',
@@ -104,9 +106,11 @@ trait AjaxActionsTrait
                 'reasoning' => $apiResponse['reasoning'],
                 'usage' => $apiResponse['usage'],
                 'proposals' => $proposals,
+                'rejected_writes' => $rejectedWrites,
                 'session_id' => $memory['session_id'],
                 'artifact' => $memory['artifact'],
                 'memory' => $memory['memory'],
+                'memory_warning' => $memoryWarning,
             ];
         });
     }
@@ -123,10 +127,11 @@ trait AjaxActionsTrait
 
             $stepIndex = isset($_POST['step_index']) ? \absint(\wp_unslash($_POST['step_index'])) : 0;
             $steps = $this->sanitizeWorkflowSteps($this->decodeJsonArray(isset($_POST['steps']) ? (string) \wp_unslash($_POST['steps']) : '[]'));
-            $history = $this->sanitizeHistory($this->decodeJsonArray(isset($_POST['history']) ? (string) \wp_unslash($_POST['history']) : '[]'));
-            $pipelineLedger = $this->sanitizePipelineLedger($this->decodeJsonArray(isset($_POST['pipeline_ledger']) ? (string) \wp_unslash($_POST['pipeline_ledger']) : '[]'));
+            $history = \array_slice($this->sanitizeHistory($this->decodeJsonArray(isset($_POST['history']) ? (string) \wp_unslash($_POST['history']) : '[]')), -self::MAX_HISTORY_MESSAGES_FOR_PIPELINE);
+            $pipelineLedger = \array_slice($this->sanitizePipelineLedger($this->decodeJsonArray(isset($_POST['pipeline_ledger']) ? (string) \wp_unslash($_POST['pipeline_ledger']) : '[]')), -self::MAX_PIPELINE_LEDGER_FOR_CONTEXT);
             $globalPrompt = isset($_POST['global_prompt']) ? $this->sanitizeBoundedText((string) \wp_unslash($_POST['global_prompt']), 6000) : '';
             $sessionId = isset($_POST['session_id']) ? $this->sanitizeMemoryId((string) \wp_unslash($_POST['session_id'])) : '';
+            $loopIndex = isset($_POST['loop_index']) ? \max(1, \absint(\wp_unslash($_POST['loop_index']))) : 1;
 
             if (!isset($steps[$stepIndex])) {
                 $this->throwTypedException('Agent step validation failed.', 'security');
@@ -136,15 +141,27 @@ trait AjaxActionsTrait
             $fileContext = $this->buildPluginFileContext($pluginSlug, $scope, $pluginMap, self::MAX_CONTEXT_PACK_BYTES);
 
             $currentStep = $steps[$stepIndex];
-            $apiResponse = $this->queryGroqGateway(
-                $this->getDecryptedApiKey(),
-                $currentStep['model'],
-                $this->buildMessages($currentStep['role'], $pluginSlug, $pluginMap, $fileContext, $globalPrompt, $history, $pipelineLedger, $currentStep['instructions']),
-                $currentStep['reasoning_effort'],
-                8192
-            );
-            $proposals = $this->stageFileWritesFromContent($pluginSlug, $currentStep['role'], $currentStep['model'], $apiResponse['stage_content']);
-            $memory = $this->persistAssistantExchange($pluginSlug, $sessionId, '', $currentStep['role'], $currentStep['model'], $apiResponse, $proposals);
+            try {
+                $apiResponse = $this->queryGroqGateway(
+                    $this->getDecryptedApiKey(),
+                    $currentStep['model'],
+                    $this->buildMessages($currentStep['role'], $pluginSlug, $pluginMap, $fileContext, $globalPrompt, $history, $pipelineLedger, $currentStep['instructions']),
+                    $currentStep['reasoning_effort'],
+                    8192
+                );
+                $proposals = $this->stageFileWritesFromContent($pluginSlug, $currentStep['role'], $currentStep['model'], $apiResponse['stage_content']);
+                $rejectedWrites = $this->consumeRejectedWrites();
+                if ($rejectedWrites !== []) {
+                    $repairEvent = new ValidationException('AI FILE_WRITE proposals were rejected by path or payload validation.');
+                    $repairPayload = $this->handlePipelineStepFailure($pluginSlug, $stepIndex, $loopIndex, $currentStep, $history, $pipelineLedger, $globalPrompt, $sessionId, $repairEvent, $rejectedWrites);
+                    $repairPayload['content'] = "ORIGINAL_AGENT_OUTPUT\n" . $apiResponse['content'] . "\n\nREPAIR_LAYER\n" . (string) $repairPayload['content'];
+                    return $repairPayload;
+                }
+                $memory = $this->persistAssistantExchange($pluginSlug, $sessionId, '', $currentStep['role'], $currentStep['model'], $apiResponse, $proposals);
+                $memoryWarning = $this->consumeMemoryWarning();
+            } catch (\Throwable $e) {
+                return $this->handlePipelineStepFailure($pluginSlug, $stepIndex, $loopIndex, $currentStep, $history, $pipelineLedger, $globalPrompt, $sessionId, $e, $this->consumeRejectedWrites());
+            }
 
             return [
                 'role' => $currentStep['role'],
@@ -154,9 +171,11 @@ trait AjaxActionsTrait
                 'reasoning' => $apiResponse['reasoning'],
                 'usage' => $apiResponse['usage'],
                 'proposals' => $proposals,
+                'rejected_writes' => $rejectedWrites,
                 'session_id' => $memory['session_id'],
                 'artifact' => $memory['artifact'],
                 'memory' => $memory['memory'],
+                'memory_warning' => $memoryWarning,
                 'pipeline_status' => $this->extractPipelineStatus($apiResponse['stage_content']),
                 'memory_entry' => [
                     'role' => $currentStep['role'],

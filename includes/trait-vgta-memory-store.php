@@ -24,7 +24,8 @@ trait MemoryStoreTrait
 
         $size = \filesize($file);
         if ($size === false || $size > 2097152) {
-            throw new StorageException('Memory store size boundary rejected.');
+            $this->rotateCorruptMemoryStore($file);
+            return ['sessions' => [], 'artifacts' => []];
         }
 
         $json = \file_get_contents($file);
@@ -35,7 +36,9 @@ trait MemoryStoreTrait
         try {
             $decoded = \json_decode($json, true, 64, \JSON_THROW_ON_ERROR);
         } catch (\JsonException $e) {
-            throw new StorageException('Memory store JSON rejected.');
+            $this->logInternalThrowable('MEMORY', $this->buildOpaqueErrorCode($e), $e);
+            $this->rotateCorruptMemoryStore($file);
+            return ['sessions' => [], 'artifacts' => []];
         }
 
         if (!\is_array($decoded)) {
@@ -53,18 +56,57 @@ trait MemoryStoreTrait
      */
     private function saveMemoryStore(string $pluginSlug, array $store): void
     {
-        $file = $this->getMemoryStoreFile($pluginSlug);
-        $payload = [
+        try {
+            $this->writeMemoryPayload($this->getMemoryStoreFile($pluginSlug), $this->buildMemoryPayload($pluginSlug, $store));
+            return;
+        } catch (\Throwable $e) {
+            $this->logInternalThrowable('MEMORY', $this->buildOpaqueErrorCode($e), $e);
+        }
+
+        try {
+            $prunedStore = [
+                'sessions' => \array_slice($store['sessions'], -10, null, true),
+                'artifacts' => \array_slice(\array_values($store['artifacts']), -30),
+            ];
+            $this->writeMemoryPayload($this->getMemoryStoreFile($pluginSlug), $this->buildMemoryPayload($pluginSlug, $prunedStore));
+            $this->lastMemoryWarning = 'Memory store was pruned or rotated to keep pipeline stable.';
+            return;
+        } catch (\Throwable $e) {
+            $this->logInternalThrowable('MEMORY', $this->buildOpaqueErrorCode($e), $e);
+        }
+
+        try {
+            $file = $this->getMemoryStoreFile($pluginSlug);
+            $this->rotateCorruptMemoryStore($file);
+            $this->writeMemoryPayload($file, $this->buildMemoryPayload($pluginSlug, ['sessions' => [], 'artifacts' => []]));
+            $this->lastMemoryWarning = 'Memory store was pruned or rotated to keep pipeline stable.';
+        } catch (\Throwable $e) {
+            $this->logInternalThrowable('MEMORY', $this->buildOpaqueErrorCode($e), $e);
+        }
+    }
+
+    /**
+     * @param array{sessions:array<string,mixed>,artifacts:array<int,mixed>} $store
+     * @return array<string,mixed>
+     */
+    private function buildMemoryPayload(string $pluginSlug, array $store): array
+    {
+        return $this->normalizeMemoryValue([
             'version' => 1,
             'plugin_slug_hash' => \hash_hmac('sha256', $pluginSlug, self::MEMORY_CONTEXT),
             'updated_at' => \gmdate('c'),
             'sessions' => \array_slice($store['sessions'], -self::MAX_MEMORY_SESSIONS, null, true),
             'artifacts' => \array_slice(\array_values($store['artifacts']), -self::MAX_MEMORY_ARTIFACTS),
-        ];
+        ]);
+    }
 
-        try {
-            $json = \json_encode($payload, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
-        } catch (\JsonException $e) {
+    /**
+     * @param array<string,mixed> $payload
+     */
+    private function writeMemoryPayload(string $file, array $payload): void
+    {
+        $json = \json_encode($payload, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_INVALID_UTF8_SUBSTITUTE);
+        if (!\is_string($json)) {
             throw new StorageException('Memory store serialization failed.');
         }
 
@@ -80,6 +122,74 @@ trait MemoryStoreTrait
             throw new StorageException('Memory store commit failed.');
         }
         @\chmod($file, 0600);
+    }
+
+    /**
+     * @param mixed $value
+     * @return mixed
+     */
+    private function normalizeMemoryValue($value, int $depth = 0)
+    {
+        if ($depth > 8) {
+            return '[VGTA_DEPTH_LIMIT]';
+        }
+
+        if (\is_string($value)) {
+            $clean = \preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $value) ?? '';
+            if (\strlen($clean) > 12000) {
+                $clean = \substr($clean, 0, 12000) . "\n[VGTA_TRUNCATED]";
+            }
+
+            if (\function_exists('mb_convert_encoding')) {
+                return \mb_convert_encoding($clean, 'UTF-8', 'UTF-8');
+            }
+
+            return \wp_check_invalid_utf8($clean, true);
+        }
+
+        if (\is_int($value) || \is_float($value) || \is_bool($value) || $value === null) {
+            return $value;
+        }
+
+        if (\is_array($value)) {
+            $out = [];
+            foreach ($value as $key => $child) {
+                $safeKey = \is_string($key) ? \preg_replace('/[^A-Za-z0-9_\-.]/', '_', $key) : (string) $key;
+                if ($safeKey === '' || $safeKey === null) {
+                    $safeKey = 'key_' . (string) \count($out);
+                }
+                $out[$safeKey] = $this->normalizeMemoryValue($child, $depth + 1);
+            }
+            return $out;
+        }
+
+        return '[VGTA_UNSERIALIZABLE]';
+    }
+
+    private function rotateCorruptMemoryStore(string $file): void
+    {
+        if (!\is_file($file)) {
+            return;
+        }
+
+        try {
+            $suffix = \bin2hex(\random_bytes(4));
+        } catch (\Throwable $e) {
+            $suffix = \substr(\hash('sha256', $file . '|' . \microtime(true)), 0, 8);
+        }
+
+        $rotated = $file . '.corrupt.' . \gmdate('YmdHis') . '.' . $suffix;
+        @\rename($file, $rotated);
+        if (\is_file($rotated)) {
+            @\chmod($rotated, 0600);
+        }
+    }
+
+    private function consumeMemoryWarning(): string
+    {
+        $warning = $this->lastMemoryWarning;
+        $this->lastMemoryWarning = '';
+        return $warning;
     }
 
     private function getMemoryStoreFile(string $pluginSlug): string

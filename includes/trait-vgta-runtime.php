@@ -168,15 +168,15 @@ trait RuntimeTrait
             \wp_send_json_error(['status' => 'error', 'message' => $e->getMessage()]);
         } catch (SecurityException $e) {
             $errorCode = $this->buildOpaqueErrorCode($e);
-            \error_log('[VGTA SEC][' . $errorCode . '] ' . $e->getMessage());
+            $this->logInternalThrowable('SEC', $errorCode, $e);
             \wp_send_json_error(['status' => 'error', 'message' => 'Request rejected for security reasons.', 'code' => $errorCode]);
         } catch (StorageException $e) {
             $errorCode = $this->buildOpaqueErrorCode($e);
-            \error_log('[VGTA STORAGE][' . $errorCode . '] ' . $e->getMessage());
+            $this->logInternalThrowable('STORAGE', $errorCode, $e);
             \wp_send_json_error(['status' => 'error', 'message' => 'A server error occurred.', 'code' => $errorCode]);
         } catch (\Throwable $e) {
             $errorCode = $this->buildOpaqueErrorCode($e);
-            \error_log('[VGTA FATAL][' . $errorCode . '] ' . $e->getMessage());
+            $this->logInternalThrowable('FATAL', $errorCode, $e);
             \wp_send_json_error(['status' => 'error', 'message' => 'Critical system fault.', 'code' => $errorCode]);
         }
     }
@@ -184,7 +184,7 @@ trait RuntimeTrait
 
     private function buildOpaqueErrorCode(\Throwable $e): string
     {
-        $material = $e::class . '|' . $e->getMessage() . '|' . $e->getFile() . '|' . (string) $e->getLine();
+        $material = \get_class($e) . '|' . $e->getMessage() . '|' . $e->getFile() . '|' . (string) $e->getLine();
         return 'VGTA-' . \strtoupper(\substr(\hash_hmac('sha256', $material, self::ERROR_CODE_CONTEXT), 0, 12));
     }
 

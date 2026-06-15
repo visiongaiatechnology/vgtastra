@@ -224,6 +224,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateMetricsRow(payload.usage || {}, Math.round(performance.now() - startTime));
                     updateProposals(payload.proposals || config.proposals);
                     memoryController.renderMemoryData(payload.memory || config.memory);
+                    if (payload.memory_warning) {
+                        appendPlainMessage('system', 'Memory Guard', String(payload.memory_warning));
+                    }
                 } else {
                     appendPlainMessage('system error', 'Chat Error', formatAjaxError(response.data));
                 }
@@ -297,6 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('nonce', config.nonce);
         formData.append('plugin_slug', config.activePlugin);
         formData.append('step_index', String(stepIndex));
+        formData.append('loop_index', String(loopIndex + 1));
         formData.append('steps', JSON.stringify(workflowSteps));
         
         // Pipeline agents now synchronized with live chat conversation history
@@ -333,6 +337,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateMetricsRow(payload.usage || {}, Math.round(performance.now() - startTime));
                     updateProposals(payload.proposals || config.proposals);
                     memoryController.renderMemoryData(payload.memory || config.memory);
+                    if (payload.memory_warning) {
+                        appendPlainMessage('system', 'Memory Guard', String(payload.memory_warning));
+                    }
+
+                    if (payload.role === 'Repair') {
+                        const repairAction = String(payload.repair_action || 'operator_required');
+                        appendPlainMessage('system', 'Repair Agent', `Recovery action: ${repairAction}.`);
+                        if (payload.continue_pipeline === false || repairAction === 'operator_required' || repairAction === 'abort') {
+                            config.isExecuting = false;
+                            resetExecutionControls();
+                            return;
+                        }
+
+                        if (repairAction === 'reduce_context') {
+                            config.chatHistory = config.chatHistory.slice(-8);
+                            config.pipelineLedger = config.pipelineLedger.slice(-8);
+                        }
+
+                        if (repairAction === 'retry' || repairAction === 'reduce_context' || repairAction === 'prune_memory') {
+                            window.setTimeout(() => executeWorkflowCycle(loopIndex, stepIndex), 400);
+                            return;
+                        }
+                    }
 
                     if (nodes.stopMode.value === 'approval' && payload.pipeline_status === 'APPROVED') {
                         appendPlainMessage('system', 'Pipeline', 'Auditor approved. Pipeline stopped.');
