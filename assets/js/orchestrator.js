@@ -322,17 +322,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     config.chatHistory.push({
                         role: 'assistant',
-                        content: `[Pipeline ${payload.role} - Loop ${loopIndex + 1}]\n${payload.content}`,
+                        content: `[Pipeline ${payload.role} - Loop ${loopIndex + 1}]\n${String(payload.content || '').slice(0, 1200)}`,
                     });
                     config.currentSessionId = String(payload.session_id || config.currentSessionId);
 
-                    // Store step output into persistent memory ledger
-                    config.pipelineLedger.push({
-                        role: payload.role,
-                        model: payload.model,
-                        loop: loopIndex + 1,
-                        content: payload.content
-                    });
+                    const ledgerEntry = payload.memory_entry && typeof payload.memory_entry === 'object'
+                        ? payload.memory_entry
+                        : {
+                            role: payload.role,
+                            model: payload.model,
+                            loop: loopIndex + 1,
+                            content: String(payload.content || '').slice(0, 6000),
+                        };
+                    config.pipelineLedger.push(ledgerEntry);
                     
                     updateMetricsRow(payload.usage || {}, Math.round(performance.now() - startTime));
                     updateProposals(payload.proposals || config.proposals);

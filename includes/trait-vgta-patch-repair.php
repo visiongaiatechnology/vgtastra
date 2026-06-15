@@ -29,17 +29,21 @@ trait PatchRepairTrait
             $normalized = \substr($normalized, 2);
         }
 
-        $pluginPrefix = \trim($pluginSlug, '/');
-        if ($pluginPrefix !== '' && \str_starts_with($normalized, $pluginPrefix . '/')) {
-            $normalized = \substr($normalized, \strlen($pluginPrefix) + 1);
+        $pluginDir = \dirname(\trim($pluginSlug, '/'));
+        if ($pluginDir === '.' || $pluginDir === '') {
+            $pluginDir = '';
+        }
+
+        if ($pluginDir !== '' && \str_starts_with($normalized, $pluginDir . '/')) {
+            $normalized = \substr($normalized, \strlen($pluginDir) + 1);
         }
 
         $marker = 'wp-content/plugins/';
         $markerPos = \stripos($normalized, $marker);
         if ($markerPos !== false) {
             $afterPlugins = \substr($normalized, $markerPos + \strlen($marker));
-            if ($pluginPrefix !== '' && \str_starts_with($afterPlugins, $pluginPrefix . '/')) {
-                $normalized = \substr($afterPlugins, \strlen($pluginPrefix) + 1);
+            if ($pluginDir !== '' && \str_starts_with($afterPlugins, $pluginDir . '/')) {
+                $normalized = \substr($afterPlugins, \strlen($pluginDir) + 1);
             }
         }
 

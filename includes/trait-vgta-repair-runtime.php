@@ -333,16 +333,6 @@ trait RepairRuntimeTrait
         return 'FATAL';
     }
 
-    private function logInternalThrowable(string $scope, string $errorCode, ?\Throwable $e): void
-    {
-        if ($e === null) {
-            \error_log('[VGTA ' . $scope . '][' . $errorCode . '] No throwable context.');
-            return;
-        }
-
-        \error_log('[VGTA ' . $scope . '][' . $errorCode . '] ' . \get_class($e) . ' ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . (string) $e->getLine());
-    }
-
     private function getMemoryStoreSize(string $pluginSlug): int
     {
         try {

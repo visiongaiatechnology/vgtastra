@@ -189,6 +189,16 @@ trait RuntimeTrait
     }
 
 
+    private function logInternalThrowable(string $scope, string $errorCode, \Throwable $e): void
+    {
+        \error_log(
+            '[VGTA ' . $scope . '][' . $errorCode . '] '
+            . \get_class($e) . ': ' . $e->getMessage()
+            . ' @ ' . $e->getFile() . ':' . (string) $e->getLine()
+        );
+    }
+
+
     private function isKernelPageRequest(): bool
     {
         return isset($_GET['page']) && \sanitize_key((string) \wp_unslash($_GET['page'])) === self::MENU_SLUG;
