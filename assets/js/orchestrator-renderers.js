@@ -117,7 +117,8 @@ window.VGTAstraRenderers = (() => {
         const lines = text.split('\n');
         let inCodeBlock = false;
         let codeLines = [];
-        lines.forEach((line) => {
+        for (let index = 0; index < lines.length; index += 1) {
+            const line = lines[index];
             if (line.trim().startsWith('```')) {
                 if (inCodeBlock) {
                     appendSafeCodeBlock(container, codeLines.join('\n'));
@@ -126,36 +127,239 @@ window.VGTAstraRenderers = (() => {
                 } else {
                     inCodeBlock = true;
                 }
-                return;
+                continue;
             }
             if (inCodeBlock) {
                 codeLines.push(line);
-                return;
+                continue;
             }
-            if (line.trim() !== '') {
-                const paragraph = document.createElement('p');
-                paragraph.className = 'vgta-chat-text';
-                appendInlineMarkdown(paragraph, line);
-                container.appendChild(paragraph);
+
+            if (line.trim() === '') {
+                continue;
             }
-        });
+
+            if (isTableStart(lines, index)) {
+                index = appendSafeMarkdownTable(container, lines, index);
+                continue;
+            }
+
+            if (isListLine(line)) {
+                index = appendSafeMarkdownList(container, lines, index);
+                continue;
+            }
+
+            const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
+            if (headingMatch) {
+                const heading = document.createElement(`h${headingMatch[1].length}`);
+                heading.className = `vgta-md-h${headingMatch[1].length}`;
+                appendInlineMarkdown(heading, headingMatch[2]);
+                container.appendChild(heading);
+                continue;
+            }
+
+            const paragraph = document.createElement('p');
+            paragraph.className = 'vgta-chat-text';
+            appendInlineMarkdown(paragraph, line);
+            container.appendChild(paragraph);
+        }
         if (inCodeBlock && codeLines.length > 0) {
             appendSafeCodeBlock(container, codeLines.join('\n'));
         }
     }
 
     function appendInlineMarkdown(container, text) {
-        const parts = String(text).split(/(\*\*[^*]+\*\*)/g);
-        parts.forEach((part) => {
-            if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
-                const strong = document.createElement('strong');
-                strong.textContent = part.slice(2, -2);
-                container.appendChild(strong);
-                return;
+        const source = String(text);
+        let cursor = 0;
+
+        while (cursor < source.length) {
+            const nextBold = source.indexOf('**', cursor);
+            const nextCode = source.indexOf('`', cursor);
+            const tokenIndex = minPositive(nextBold, nextCode);
+
+            if (tokenIndex === -1) {
+                container.appendChild(document.createTextNode(source.slice(cursor)));
+                break;
             }
 
-            container.appendChild(document.createTextNode(part));
+            if (tokenIndex > cursor) {
+                container.appendChild(document.createTextNode(source.slice(cursor, tokenIndex)));
+            }
+
+            if (tokenIndex === nextBold) {
+                const end = source.indexOf('**', tokenIndex + 2);
+                if (end === -1) {
+                    container.appendChild(document.createTextNode(source.slice(tokenIndex)));
+                    break;
+                }
+
+                const strong = document.createElement('strong');
+                strong.textContent = source.slice(tokenIndex + 2, end);
+                container.appendChild(strong);
+                cursor = end + 2;
+                continue;
+            }
+
+            const end = source.indexOf('`', tokenIndex + 1);
+            if (end === -1) {
+                container.appendChild(document.createTextNode(source.slice(tokenIndex)));
+                break;
+            }
+
+            const code = document.createElement('code');
+            code.className = 'vgta-inline-code';
+            code.textContent = source.slice(tokenIndex + 1, end);
+            container.appendChild(code);
+            cursor = end + 1;
+        }
+    }
+
+    function minPositive(first, second) {
+        if (first === -1) {
+            return second;
+        }
+        if (second === -1) {
+            return first;
+        }
+        return Math.min(first, second);
+    }
+
+    function isTableStart(lines, index) {
+        if (!isTableRow(lines[index])) {
+            return false;
+        }
+
+        const separatorIndex = nextNonEmptyIndex(lines, index + 1);
+        return separatorIndex !== -1 && isTableSeparator(lines[separatorIndex]);
+    }
+
+    function appendSafeMarkdownTable(container, lines, startIndex) {
+        const tableLines = [];
+        let index = startIndex;
+
+        while (index < lines.length) {
+            if (lines[index].trim() === '') {
+                const nextIndex = nextNonEmptyIndex(lines, index + 1);
+                if (nextIndex !== -1 && isTableRow(lines[nextIndex])) {
+                    index = nextIndex;
+                    continue;
+                }
+                break;
+            }
+
+            if (!isTableRow(lines[index])) {
+                break;
+            }
+
+            tableLines.push(lines[index]);
+            index += 1;
+        }
+
+        const headerCells = splitTableRow(tableLines[0]);
+        const bodyLines = tableLines.filter((row, rowIndex) => rowIndex > 1 && !isTableSeparator(row));
+        const wrapper = document.createElement('div');
+        wrapper.className = 'vgta-table-container';
+        const table = document.createElement('table');
+        table.className = 'vgta-command-table';
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        headerCells.forEach((cell) => {
+            const th = document.createElement('th');
+            appendInlineMarkdown(th, cell);
+            headerRow.appendChild(th);
         });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        bodyLines.forEach((row) => {
+            const tr = document.createElement('tr');
+            splitTableRow(row).forEach((cell) => {
+                const td = document.createElement('td');
+                appendInlineMarkdown(td, cell);
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        wrapper.appendChild(table);
+        container.appendChild(wrapper);
+
+        return index - 1;
+    }
+
+    function isTableRow(line) {
+        const trimmed = String(line || '').trim();
+        return trimmed.includes('|') && trimmed.replace(/\|/g, '').trim() !== '';
+    }
+
+    function isTableSeparator(line) {
+        return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(String(line || ''));
+    }
+
+    function splitTableRow(line) {
+        const trimmed = String(line || '').trim().replace(/^\|/, '').replace(/\|$/, '');
+        return trimmed.split('|').map((cell) => cell.trim());
+    }
+
+    function appendSafeMarkdownList(container, lines, startIndex) {
+        const firstMatch = parseListLine(lines[startIndex]);
+        const ordered = Boolean(firstMatch && firstMatch.ordered);
+        const list = document.createElement(ordered ? 'ol' : 'ul');
+        list.className = ordered ? 'vgta-md-ol' : 'vgta-md-ul';
+        let index = startIndex;
+
+        while (index < lines.length) {
+            if (lines[index].trim() === '') {
+                const nextIndex = nextNonEmptyIndex(lines, index + 1);
+                const nextMatch = nextIndex === -1 ? null : parseListLine(lines[nextIndex]);
+                if (nextMatch && nextMatch.ordered === ordered) {
+                    index = nextIndex;
+                    continue;
+                }
+                break;
+            }
+
+            const match = parseListLine(lines[index]);
+            if (!match || match.ordered !== ordered) {
+                break;
+            }
+
+            const item = document.createElement('li');
+            appendInlineMarkdown(item, match.content);
+            list.appendChild(item);
+            index += 1;
+        }
+
+        container.appendChild(list);
+        return index - 1;
+    }
+
+    function isListLine(line) {
+        return parseListLine(line) !== null;
+    }
+
+    function parseListLine(line) {
+        const value = String(line || '');
+        const ordered = value.match(/^\s*\d+\.\s+(.+)$/);
+        if (ordered) {
+            return { ordered: true, content: ordered[1] };
+        }
+
+        const unordered = value.match(/^\s*[-*]\s+(.+)$/);
+        if (unordered) {
+            return { ordered: false, content: unordered[1] };
+        }
+
+        return null;
+    }
+
+    function nextNonEmptyIndex(lines, index) {
+        for (let cursor = index; cursor < lines.length; cursor += 1) {
+            if (String(lines[cursor] || '').trim() !== '') {
+                return cursor;
+            }
+        }
+        return -1;
     }
 
     function appendSafeCodeBlock(container, codeText) {
