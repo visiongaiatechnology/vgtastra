@@ -133,12 +133,29 @@ window.VGTAstraRenderers = (() => {
                 return;
             }
             if (line.trim() !== '') {
-                container.appendChild(createTextElement('p', 'vgta-chat-text', line));
+                const paragraph = document.createElement('p');
+                paragraph.className = 'vgta-chat-text';
+                appendInlineMarkdown(paragraph, line);
+                container.appendChild(paragraph);
             }
         });
         if (inCodeBlock && codeLines.length > 0) {
             appendSafeCodeBlock(container, codeLines.join('\n'));
         }
+    }
+
+    function appendInlineMarkdown(container, text) {
+        const parts = String(text).split(/(\*\*[^*]+\*\*)/g);
+        parts.forEach((part) => {
+            if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+                const strong = document.createElement('strong');
+                strong.textContent = part.slice(2, -2);
+                container.appendChild(strong);
+                return;
+            }
+
+            container.appendChild(document.createTextNode(part));
+        });
     }
 
     function appendSafeCodeBlock(container, codeText) {
