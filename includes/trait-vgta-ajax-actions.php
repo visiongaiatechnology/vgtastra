@@ -73,6 +73,9 @@ trait AjaxActionsTrait
             $history = $this->sanitizeHistory($this->decodeJsonArray(isset($_POST['history']) ? (string) \wp_unslash($_POST['history']) : '[]'));
             $pipelineLedger = $this->sanitizePipelineLedger($this->decodeJsonArray(isset($_POST['pipeline_ledger']) ? (string) \wp_unslash($_POST['pipeline_ledger']) : '[]'));
             $sessionId = isset($_POST['session_id']) ? $this->sanitizeMemoryId((string) \wp_unslash($_POST['session_id'])) : '';
+            $groundingMode = !empty($_POST['use_grounding']) ? $this->sanitizeGroundingMode(isset($_POST['grounding_mode']) ? (string) \wp_unslash($_POST['grounding_mode']) : 'cited') : 'off';
+            $groundingSources = isset($_POST['grounding_sources']) ? \max(1, \min(self::MAX_GROUNDING_SOURCES, \absint(\wp_unslash($_POST['grounding_sources'])))) : 3;
+            $groundingDomains = isset($_POST['grounding_domains']) ? $this->sanitizeBoundedText((string) \wp_unslash($_POST['grounding_domains']), 600) : '';
 
             if ($message === '') {
                 $this->throwTypedException('Chat message required.', 'validation');
@@ -86,10 +89,17 @@ trait AjaxActionsTrait
                 $fileContext = $this->buildPluginFileContext($pluginSlug, $scope, $pluginMap, self::MAX_CONTEXT_PACK_BYTES);
             }
 
+            $groundingPack = $this->buildGroundingPack($message, $groundingMode, $groundingSources, $groundingDomains);
+            $task = $message;
+            $groundingContext = $this->formatGroundingPackForPrompt($groundingPack);
+            if ($groundingContext !== '') {
+                $task .= "\n\n" . $groundingContext;
+            }
+
             $apiResponse = $this->queryGroqGateway(
                 $this->getDecryptedApiKey(),
                 $model,
-                $this->buildMessages('Assistant', $pluginSlug, $pluginMap, $fileContext, '', $history, $pipelineLedger, $message),
+                $this->buildMessages('Assistant', $pluginSlug, $pluginMap, $fileContext, '', $history, $pipelineLedger, $task),
                 $reasoningEffort,
                 8192
             );
@@ -98,6 +108,7 @@ trait AjaxActionsTrait
             $rejectedWrites = $this->consumeRejectedWrites();
             $memory = $this->persistAssistantExchange($pluginSlug, $sessionId, $message, 'Assistant', $model, $apiResponse, $proposals);
             $memoryWarning = $this->consumeMemoryWarning();
+            $agentBlueprint = $this->shouldOfferAgentBlueprint($message) ? $this->buildAgentBlueprintFromIntent($message, $model) : null;
 
             return [
                 'role' => 'Assistant',
@@ -111,6 +122,8 @@ trait AjaxActionsTrait
                 'artifact' => $memory['artifact'],
                 'memory' => $memory['memory'],
                 'memory_warning' => $memoryWarning,
+                'agent_blueprint' => $agentBlueprint,
+                'grounding_pack' => $groundingPack,
             ];
         });
     }
@@ -351,6 +364,126 @@ trait AjaxActionsTrait
             }
 
             return ['artifact' => $this->getMemoryArtifact($pluginSlug, $artifactId)];
+        });
+    }
+
+
+    public function ajaxCreateAgentBlueprint(): void
+    {
+        $this->initializeErrorHandling();
+        $this->sendJsonFromOperation(function (): array {
+            $this->assertAjaxAccess();
+            $message = $this->sanitizeBoundedText(isset($_POST['message']) ? (string) \wp_unslash($_POST['message']) : '', self::MAX_CHAT_BYTES);
+            $model = $this->sanitizeModel(isset($_POST['model']) ? (string) \wp_unslash($_POST['model']) : 'openai/gpt-oss-20b');
+            if ($message === '') {
+                throw new ValidationException('Agent intent required.');
+            }
+
+            return ['blueprint' => $this->buildAgentBlueprintFromIntent($message, $model)];
+        });
+    }
+
+
+    public function ajaxValidateAgentBlueprint(): void
+    {
+        $this->initializeErrorHandling();
+        $this->sendJsonFromOperation(function (): array {
+            $this->assertAjaxAccess();
+            $raw = $this->decodeJsonArray(isset($_POST['blueprint']) ? (string) \wp_unslash($_POST['blueprint']) : '{}');
+            return ['blueprint' => $this->validateAgentBlueprint($raw, true)];
+        });
+    }
+
+
+    public function ajaxRegisterAgentBlueprint(): void
+    {
+        $this->initializeErrorHandling();
+        $this->sendJsonFromOperation(function (): array {
+            $this->assertAjaxAccess();
+            $raw = $this->decodeJsonArray(isset($_POST['blueprint']) ? (string) \wp_unslash($_POST['blueprint']) : '{}');
+            $blueprint = $this->validateAgentBlueprint($raw, false);
+            $registry = $this->getCustomAgentRegistry();
+            $registry[$blueprint['id']] = $blueprint;
+            $this->saveCustomAgentRegistry($registry);
+
+            return [
+                'message' => 'Agent blueprint registered.',
+                'agents' => $this->getCustomAgentPayload(),
+                'roles' => $this->getRolePayload(),
+            ];
+        });
+    }
+
+
+    public function ajaxListCustomAgents(): void
+    {
+        $this->initializeErrorHandling();
+        $this->sendJsonFromOperation(function (): array {
+            $this->assertAjaxAccess();
+            return ['agents' => $this->getCustomAgentPayload(), 'roles' => $this->getRolePayload()];
+        });
+    }
+
+
+    public function ajaxDeleteCustomAgent(): void
+    {
+        $this->initializeErrorHandling();
+        $this->sendJsonFromOperation(function (): array {
+            $this->assertAjaxAccess();
+            $agentId = \sanitize_key(isset($_POST['agent_id']) ? (string) \wp_unslash($_POST['agent_id']) : '');
+            if (\preg_match('/\A[a-z0-9][a-z0-9_-]{2,63}\z/', $agentId) !== 1) {
+                $this->throwTypedException('Agent token validation failed.', 'security');
+            }
+
+            $registry = $this->getCustomAgentRegistry();
+            unset($registry[$agentId]);
+            $this->saveCustomAgentRegistry($registry);
+
+            return ['message' => 'Custom agent deleted.', 'agents' => $this->getCustomAgentPayload(), 'roles' => $this->getRolePayload()];
+        });
+    }
+
+
+    public function ajaxExportAgentBlueprint(): void
+    {
+        $this->initializeErrorHandling();
+        $this->sendJsonFromOperation(function (): array {
+            $this->assertAjaxAccess();
+            $agentId = \sanitize_key(isset($_POST['agent_id']) ? (string) \wp_unslash($_POST['agent_id']) : '');
+            $registry = $this->getCustomAgentRegistry();
+            if (!isset($registry[$agentId]) || !\is_array($registry[$agentId])) {
+                throw new ValidationException('Agent blueprint not found.');
+            }
+
+            return ['blueprint' => $registry[$agentId]];
+        });
+    }
+
+
+    public function ajaxImportAgentBlueprint(): void
+    {
+        $this->initializeErrorHandling();
+        $this->sendJsonFromOperation(function (): array {
+            $this->assertAjaxAccess();
+            $raw = $this->decodeJsonArray(isset($_POST['blueprint']) ? (string) \wp_unslash($_POST['blueprint']) : '{}');
+            return ['blueprint' => $this->validateAgentBlueprint($raw, true)];
+        });
+    }
+
+
+    public function ajaxClearGroundingCache(): void
+    {
+        $this->initializeErrorHandling();
+        $this->sendJsonFromOperation(function (): array {
+            $this->assertAjaxAccess();
+            $root = $this->ensureWorkspaceDirectory($this->getSecureWorkspaceRoot(), self::GROUNDING_DIR_NAME);
+            foreach (\glob($root . \DIRECTORY_SEPARATOR . '*.json') ?: [] as $file) {
+                if (\is_file($file) && \str_starts_with($file, $root . \DIRECTORY_SEPARATOR)) {
+                    @\unlink($file);
+                }
+            }
+
+            return ['message' => 'Grounding cache cleared.'];
         });
     }
 

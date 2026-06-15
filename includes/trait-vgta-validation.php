@@ -82,7 +82,7 @@ trait ValidationTrait
             }
 
             $role = isset($step['role']) ? \sanitize_text_field((string) $step['role']) : '';
-            if (!isset(self::ROLE_PROMPTS[$role])) {
+            if (!isset(self::ROLE_PROMPTS[$role]) && $this->getCustomAgentPrompt($role) === '') {
                 $this->throwTypedException('Agent role validation failed.', 'validation');
             }
 

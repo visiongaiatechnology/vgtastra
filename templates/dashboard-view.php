@@ -64,6 +64,17 @@ if (!defined('ABSPATH')) {
                 </select>
                 <button id="vgta-btn-new-chat" class="vgta-btn secondary tiny">NEW CHAT</button>
             </div>
+            <div class="vgta-grounding-bar">
+                <label class="vgta-toggle-line"><input id="vgta-use-grounding" type="checkbox"> Use Web Grounding</label>
+                <select id="vgta-grounding-mode" class="vgta-input">
+                    <option value="cited">CITED</option>
+                    <option value="research">RESEARCH</option>
+                    <option value="strict_allowlist">STRICT ALLOWLIST</option>
+                </select>
+                <input id="vgta-grounding-sources" class="vgta-input" type="number" min="1" max="5" value="3">
+                <input id="vgta-grounding-domains" class="vgta-input" type="text" placeholder="allowed domains">
+                <button id="vgta-btn-clear-grounding-cache" class="vgta-btn secondary tiny">CLEAR CACHE</button>
+            </div>
             <div class="vgta-memory-dock">
                 <div class="vgta-memory-column">
                     <div class="vgta-section-sub-title">CHAT MEMORY</div>
@@ -140,6 +151,24 @@ if (!defined('ABSPATH')) {
         </div>
         <div id="vgta-patch-list" class="vgta-patch-list">
             <div class="vgta-placeholder-text">No staged file proposals.</div>
+        </div>
+    </section>
+
+    <section class="vgta-panel vgta-agent-forge">
+        <div class="vgta-panel-header">AGENT FORGE</div>
+        <div class="vgta-forge-grid">
+            <div class="vgta-forge-preview">
+                <div class="vgta-section-sub-title">BLUEPRINT PREVIEW</div>
+                <div id="vgta-agent-blueprint-preview" class="vgta-agent-blueprint-preview">
+                    <div class="vgta-placeholder-text">Ask the chat to build a specialist agent, then review the blueprint here.</div>
+                </div>
+            </div>
+            <div class="vgta-forge-registry">
+                <div class="vgta-section-sub-title">CUSTOM AGENTS</div>
+                <div id="vgta-custom-agent-list" class="vgta-custom-agent-list">
+                    <div class="vgta-placeholder-text">No custom agents registered.</div>
+                </div>
+            </div>
         </div>
     </section>
 

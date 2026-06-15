@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pipelineLedger: [], // Persistent Cognitive state across steps
         currentSessionId: '',
         memory: { sessions: [], artifacts: [] },
+        customAgents: Array.isArray(vgtaConfig.customAgents) ? vgtaConfig.customAgents : [],
     };
 
     const core = window.VGTAstraCore;
@@ -34,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const getLoopCount = () => core.getLoopCount(nodes);
     const updateMetricsRow = (usage, latencyMs) => core.updateMetricsRow(nodes, createTextElement, usage, latencyMs);
     let memoryController = null;
+    let forgeController = null;
 
     const defaultModel = pickModel('openai/gpt-oss-120b');
     const compactModel = pickModel('openai/gpt-oss-20b');
@@ -68,6 +70,11 @@ document.addEventListener('DOMContentLoaded', () => {
         mapTree: document.getElementById('vgta-map-tree'),
         chatModel: document.getElementById('vgta-chat-model'),
         chatReasoning: document.getElementById('vgta-chat-reasoning'),
+        useGrounding: document.getElementById('vgta-use-grounding'),
+        groundingMode: document.getElementById('vgta-grounding-mode'),
+        groundingSources: document.getElementById('vgta-grounding-sources'),
+        groundingDomains: document.getElementById('vgta-grounding-domains'),
+        btnClearGroundingCache: document.getElementById('vgta-btn-clear-grounding-cache'),
         chatLog: document.getElementById('vgta-chat-log'),
         chatInput: document.getElementById('vgta-chat-input'),
         btnSendChat: document.getElementById('vgta-btn-send-chat'),
@@ -84,6 +91,8 @@ document.addEventListener('DOMContentLoaded', () => {
         btnNewChat: document.getElementById('vgta-btn-new-chat'),
         memorySessions: document.getElementById('vgta-memory-sessions'),
         memoryArtifacts: document.getElementById('vgta-memory-artifacts'),
+        agentBlueprintPreview: document.getElementById('vgta-agent-blueprint-preview'),
+        customAgentList: document.getElementById('vgta-custom-agent-list'),
     };
 
     function renderStepsConfig() {
@@ -212,6 +221,10 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('history', JSON.stringify(config.chatHistory.slice(-24)));
         formData.append('pipeline_ledger', JSON.stringify(config.pipelineLedger));
         formData.append('session_id', config.currentSessionId);
+        formData.append('use_grounding', nodes.useGrounding.checked ? '1' : '');
+        formData.append('grounding_mode', nodes.groundingMode.value);
+        formData.append('grounding_sources', nodes.groundingSources.value);
+        formData.append('grounding_domains', nodes.groundingDomains.value);
 
         postForm(formData)
             .then((response) => {
@@ -227,6 +240,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (payload.memory_warning) {
                         appendPlainMessage('system', 'Memory Guard', String(payload.memory_warning));
                     }
+                    forgeController.renderGroundingPack(payload.grounding_pack);
+                    forgeController.renderBlueprint(payload.agent_blueprint);
                 } else {
                     appendPlainMessage('system error', 'Chat Error', formatAjaxError(response.data));
                 }
@@ -520,7 +535,17 @@ document.addEventListener('DOMContentLoaded', () => {
         createTextElement,
         appendPlainMessage,
     });
+    forgeController = window.VGTAstraAgentForge.createController({
+        config,
+        nodes,
+        postForm,
+        formatAjaxError,
+        createTextElement,
+        appendPlainMessage,
+        rerenderSteps: renderStepsConfig,
+    });
     renderStepsConfig();
     renderPatchVault();
     memoryController.loadMemory();
+    forgeController.loadAgents();
 });

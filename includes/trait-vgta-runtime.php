@@ -27,6 +27,14 @@ trait RuntimeTrait
         \add_action('wp_ajax_vgta_list_memory', [$this, 'ajaxListMemory']);
         \add_action('wp_ajax_vgta_load_memory_session', [$this, 'ajaxLoadMemorySession']);
         \add_action('wp_ajax_vgta_load_memory_artifact', [$this, 'ajaxLoadMemoryArtifact']);
+        \add_action('wp_ajax_vgta_create_agent_blueprint', [$this, 'ajaxCreateAgentBlueprint']);
+        \add_action('wp_ajax_vgta_validate_agent_blueprint', [$this, 'ajaxValidateAgentBlueprint']);
+        \add_action('wp_ajax_vgta_register_agent_blueprint', [$this, 'ajaxRegisterAgentBlueprint']);
+        \add_action('wp_ajax_vgta_list_custom_agents', [$this, 'ajaxListCustomAgents']);
+        \add_action('wp_ajax_vgta_delete_custom_agent', [$this, 'ajaxDeleteCustomAgent']);
+        \add_action('wp_ajax_vgta_export_agent_blueprint', [$this, 'ajaxExportAgentBlueprint']);
+        \add_action('wp_ajax_vgta_import_agent_blueprint', [$this, 'ajaxImportAgentBlueprint']);
+        \add_action('wp_ajax_vgta_clear_grounding_cache', [$this, 'ajaxClearGroundingCache']);
     }
 
 
@@ -83,12 +91,14 @@ trait RuntimeTrait
         \wp_enqueue_script('vgta-orchestrator-review-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator-review.js', ['vgta-orchestrator-renderers-js'], VGTA_PLUGIN_VERSION, true);
         \wp_enqueue_script('vgta-orchestrator-steps-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator-steps.js', ['vgta-orchestrator-core-js'], VGTA_PLUGIN_VERSION, true);
         \wp_enqueue_script('vgta-orchestrator-memory-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator-memory.js', ['vgta-orchestrator-renderers-js'], VGTA_PLUGIN_VERSION, true);
-        \wp_enqueue_script('vgta-orchestrator-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator.js', ['vgta-orchestrator-core-js', 'vgta-orchestrator-renderers-js', 'vgta-orchestrator-review-js', 'vgta-orchestrator-steps-js', 'vgta-orchestrator-memory-js'], VGTA_PLUGIN_VERSION, true);
+        \wp_enqueue_script('vgta-orchestrator-forge-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator-forge.js', ['vgta-orchestrator-renderers-js'], VGTA_PLUGIN_VERSION, true);
+        \wp_enqueue_script('vgta-orchestrator-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator.js', ['vgta-orchestrator-core-js', 'vgta-orchestrator-renderers-js', 'vgta-orchestrator-review-js', 'vgta-orchestrator-steps-js', 'vgta-orchestrator-memory-js', 'vgta-orchestrator-forge-js'], VGTA_PLUGIN_VERSION, true);
         \wp_localize_script('vgta-orchestrator-js', 'vgtaConfig', [
             'ajaxUrl' => \admin_url('admin-ajax.php'),
             'nonce' => \wp_create_nonce(self::NONCE_ACTION),
             'models' => $this->getModelPayload(),
-            'roles' => \array_keys(self::ROLE_PROMPTS),
+            'roles' => $this->getRolePayload(),
+            'customAgents' => $this->getCustomAgentPayload(),
         ]);
     }
 

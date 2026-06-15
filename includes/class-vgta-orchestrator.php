@@ -45,6 +45,17 @@ final class AgenticOrchestrator
     private const MAX_MEMORY_MESSAGES = 80;
     private const MAX_MEMORY_ARTIFACTS = 120;
     private const MAX_ARTIFACT_BYTES = 12000;
+    private const AGENT_REGISTRY_KEY = 'vgta_custom_agent_registry_v1';
+    private const AGENT_REGISTRY_CONTEXT = 'vgta-agent-registry:v1';
+    private const MAX_CUSTOM_AGENTS = 25;
+    private const MAX_AGENT_PROMPT_BYTES = 8000;
+    private const MAX_AGENT_DESCRIPTION_BYTES = 1200;
+    private const GROUNDING_DIR_NAME = 'feed_cafe_3333_eeee';
+    private const GROUNDING_CONTEXT = 'vgta-grounding-cache-v1';
+    private const GROUNDING_CACHE_TTL = 21600;
+    private const MAX_GROUNDING_SOURCE_BYTES = 50000;
+    private const MAX_GROUNDING_PACK_BYTES = 120000;
+    private const MAX_GROUNDING_SOURCES = 5;
 
     /**
      * @var array<string, array{label:string,max_output:int,multimodal:bool,reasoning_values:list<string>,reasoning_default:string}>
@@ -107,6 +118,8 @@ final class AgenticOrchestrator
     use PatchReviewTrait;
     use MemoryStoreTrait;
     use RepairRuntimeTrait;
+    use AgentRegistryTrait;
+    use GroundingBrokerTrait;
     use ValidationTrait;
     use GroqGatewayTrait;
 }
