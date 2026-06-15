@@ -66,6 +66,192 @@ To use VGTAstra with its full feature set, current roadmap, and Throne Guard com
 
 ---
 
+## Changelog
+
+### 1.3.0-beta.5 — Self-Healing Pipeline Update
+
+**Status:** Beta Stable Candidate
+**Focus:** Pipeline stability, repair automation, memory resilience, safer patch handling, and improved VGT Desk readiness.
+
+---
+
+### Added
+
+* Added **Repair Agent** as a new low-cost recovery layer for the agent pipeline.
+* Added **self-healing pipeline runtime** for recoverable pipeline failures.
+* Added **encrypted Error Event Buffer** for internal repair diagnostics.
+* Added structured repair actions:
+
+  * `retry`
+  * `skip_invalid_patch`
+  * `prune_memory`
+  * `reduce_context`
+  * `operator_required`
+  * `abort`
+* Added `trait-vgta-patch-repair.php`.
+* Added `trait-vgta-repair-runtime.php`.
+* Added repair attempt limits to prevent infinite retry loops.
+* Added internal repair context summaries for failed pipeline steps.
+* Added rejected `FILE_WRITE` tracking for invalid AI-generated patch paths.
+* Added safer AI path normalization before strict path validation.
+* Added improved internal throwable logging with class, message, file and line.
+* Added reduced context mode for repair retries.
+* Added memory entry support for smaller pipeline ledger payloads.
+
+---
+
+### Changed
+
+* Pipeline errors no longer automatically terminate the full workflow when the error is recoverable.
+* Invalid AI-generated `FILE_WRITE` blocks are now rejected individually instead of killing the entire Developer step.
+* Pipeline history handling now prefers compact `memory_entry` payloads.
+* Pipeline outputs are no longer duplicated in full across chat history and pipeline ledger.
+* AI-generated write paths are normalized before strict validation.
+* Plugin folder prefixes are now resolved using `dirname($pluginSlug)` for better WordPress plugin slug handling.
+* Repair logic now treats plugin files, logs, model output and patch proposals as untrusted source material.
+* Memory Store handling is more defensive against oversized or malformed data.
+* Pipeline context can be reduced automatically after context-size or payload-related failures.
+
+---
+
+### Fixed
+
+* Fixed recurring `Memory store serialization failed` pipeline failures.
+* Fixed pipeline crashes caused by invalid UTF-8 or malformed model output during memory serialization.
+* Fixed hard Developer-step failures caused by a single invalid `FILE_WRITE` path.
+* Fixed plugin-root prefix normalization for paths such as:
+
+```text
+example-plugin/includes/class-example.php
+```
+
+* Fixed path normalization for common AI formatting mistakes such as:
+
+```text
+./includes/file.php
+`includes/file.php`
+includes/file.php:
+wp-content/plugins/example-plugin/includes/file.php
+```
+
+* Fixed excessive pipeline payload growth caused by duplicated chat history and pipeline ledger content.
+* Fixed opaque error codes being difficult to resolve internally by adding expanded internal error logging.
+* Fixed repair-relevant errors not being available to the recovery layer.
+* Fixed memory write instability by adding normalization, pruning and rotation behavior.
+
+---
+
+### Security
+
+* Repair Agent is explicitly forbidden from weakening security boundaries.
+* Repair Agent cannot bypass:
+
+  * nonce checks
+  * capability checks
+  * path validation
+  * path jail restrictions
+  * review token checks
+  * commit guards
+  * Throne Guard integration points
+* Path traversal, symlinks, absolute filesystem paths, stream wrappers and unsupported file types remain hard-blocked.
+* Invalid patch paths are classified and rejected safely.
+* Error Event Buffer is stored as protected internal diagnostic context.
+* Public AJAX responses remain opaque and do not expose sensitive internals.
+* API keys, vault payloads and secrets must not be logged.
+* Security-critical failures such as CSRF, authorization rejection, traversal attempts and review-token mismatches remain fail-closed.
+
+---
+
+### Stability
+
+* Memory Store now normalizes stored values before JSON serialization.
+* Invalid UTF-8 is substituted instead of crashing serialization.
+* Control characters are removed from memory payloads.
+* Oversized memory entries are truncated.
+* Corrupted or oversized memory files can be rotated instead of breaking the pipeline.
+* Repair mode can retry failed steps with reduced context limits.
+* Repair attempts are capped per step and per pipeline run.
+* Failed patch extraction no longer destroys the complete agent response.
+* Rejected writes can be surfaced to the operator for review.
+
+---
+
+### Internal Architecture
+
+* Introduced dedicated Repair Runtime layer.
+* Introduced Patch Repair layer.
+* Improved separation between:
+
+  * pipeline execution
+  * error capture
+  * repair analysis
+  * patch staging
+  * memory persistence
+  * user-facing response handling
+* Added structured repair diagnostics for future UI expansion.
+* Added foundation for a future **Repair Panel** in the VGT Desk Build Center.
+* Improved readiness for VGT Desk integration as a self-healing Build Center app.
+
+---
+
+### VGT Desk Integration Notes
+
+This release moves VGTAstra closer to becoming a native VGT Desk Build Center application.
+
+Recommended integration path:
+
+```text
+VGT Desk
+└── Build Center
+    └── VGTAstra Agent Lab
+        ├── Live Assistant
+        ├── Role Pipeline
+        ├── Patch Vault
+        ├── Diff Review
+        ├── Memory Store
+        ├── Repair Agent
+        └── Commit Guard
+```
+
+Beta 5 establishes the first version of the **Self-Healing Agentic WordPress Engineering Console** concept.
+
+---
+
+### Upgrade Notes
+
+* Existing beta.4 installations should clear or rotate old memory store files if unstable pipeline behavior occurred previously.
+* Review any existing staged patches before upgrading.
+* Re-save Groq credentials if vault-related changes were tested manually during development.
+* Run a fresh pipeline test with an inactive plugin after updating.
+
+---
+
+### Known Limitations
+
+* Repair Agent is designed for recoverable pipeline, memory, context and AI-formatting failures.
+* Repair Agent does not bypass hard security boundaries.
+* Human review is still required before committing patches.
+* Memory Store encryption should remain a future hardening target if sensitive project context is stored long-term.
+* Rollback UI and VGT Desk Repair Panel are planned follow-up improvements.
+
+---
+
+### Summary
+
+Version `1.3.0-beta.5` upgrades VGTAstra from an agentic WordPress engineering console into a **self-healing agentic engineering console**.
+
+The pipeline can now recover from common AI-output, memory, payload and patch-formatting problems while keeping strict security boundaries intact.
+
+Core principle:
+
+```text
+Fail closed on security boundaries.
+Fail soft on AI formatting errors.
+Repair automatically where safe.
+Pause for operator where uncertain.
+```
+
+
 <img width="2558" height="1160" alt="image" src="https://github.com/user-attachments/assets/0f1fcdb6-ae9b-4a54-9268-c0ab08c03771" />
 
 
