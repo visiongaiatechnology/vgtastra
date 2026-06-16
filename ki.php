@@ -3,8 +3,15 @@
  * Plugin Name: VGTAstra Agent System
  * Description: Zero-dependency WordPress AI assistant system with live chat, Groq reasoning pipelines, encrypted vault storage, and safe plugin patch staging.
  * Version: 1.4.0-beta.1
- * Author: VisionGaia Technology
- * License: Proprietary
+* Author URI:        https://visiongaiatechnology.de
+ * License:           AGPLv3
+ * License URI:       https://www.gnu.org/licenses/agpl-3.0.html
+ * Text Domain:       vgt-astra
+ *
+ * --- LICENSE & COPYRIGHT INFORMATION ---
+ * (c) 2024-2026 VisionGaiaTechnology. All Rights Reserved.
+ * This software is open-source under the terms of the GNU Affero General Public License v3 (AGPLv3).
+ * Any modification, redistribution or integration into other suites must comply with the AGPLv3.
  */
 
 declare(strict_types=1);
