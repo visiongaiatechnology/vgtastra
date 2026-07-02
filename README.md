@@ -12,7 +12,7 @@
 # VGTAstra Agent System
 ### Agentic WordPress Engineering Console
 
-[![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](#)
+[![License](https://img.shields.io/badge/License-AGPLv3-red?style=for-the-badge)](#)
 [![Version](https://img.shields.io/badge/Version-1.4.0--beta.5-yellow?style=for-the-badge)](#)
 [![PHP](https://img.shields.io/badge/PHP-8.1+-777BB4?style=for-the-badge&logo=php)](https://php.net)
 [![WordPress](https://img.shields.io/badge/WordPress-6.0+-21759B?style=for-the-badge&logo=wordpress)](https://wordpress.org)
@@ -719,7 +719,7 @@ Files exceeding limits are flagged or excluded. Priority order: primary file →
 
 ## 📄 License
 
-Proprietary · © 2026 VisionGaia Technology · Cologne, Germany
+AGPLv3 · © 2026 VisionGaia Technology · Cologne, Germany
 
 VGTAstra is not open-source. The repository is provided as a reference architecture for developers building agentic WordPress tooling. Redistribution, resale or white-labeling without written permission from VisionGaia Technology is prohibited.
 
