@@ -22,6 +22,8 @@ trait RuntimeTrait
         \add_action('wp_ajax_vgta_chat_message', [$this, 'ajaxChatMessage']);
         \add_action('wp_ajax_vgta_execute_agent_step', [$this, 'ajaxExecuteAgentStep']);
         \add_action('wp_ajax_vgta_prepare_patch_review', [$this, 'ajaxPreparePatchReview']);
+        \add_action('wp_ajax_vgta_prepare_patch_bundle_review', [$this, 'ajaxPreparePatchBundleReview']);
+        \add_action('wp_ajax_vgta_analyze_error', [$this, 'ajaxAnalyzeError']);
         \add_action('wp_ajax_vgta_commit_staged_patch', [$this, 'ajaxCommitStagedPatch']);
         \add_action('wp_ajax_vgta_clear_patch_vault', [$this, 'ajaxClearPatchVault']);
         \add_action('wp_ajax_vgta_list_memory', [$this, 'ajaxListMemory']);
@@ -85,18 +87,21 @@ trait RuntimeTrait
         \wp_enqueue_style('vgta-orchestrator-memory-css', VGTA_PLUGIN_URL . 'assets/css/orchestrator-memory.css', ['vgta-orchestrator-diff-css'], VGTA_PLUGIN_VERSION);
         \wp_enqueue_style('vgta-orchestrator-onboarding-css', VGTA_PLUGIN_URL . 'assets/css/orchestrator-onboarding.css', ['vgta-orchestrator-memory-css'], VGTA_PLUGIN_VERSION);
         \wp_enqueue_style('vgta-orchestrator-premium-css', VGTA_PLUGIN_URL . 'assets/css/orchestrator-premium.css', ['vgta-orchestrator-onboarding-css'], VGTA_PLUGIN_VERSION);
+        \wp_enqueue_style('vgta-orchestrator-layout-css', VGTA_PLUGIN_URL . 'assets/css/orchestrator-layout.css', ['vgta-orchestrator-premium-css'], VGTA_PLUGIN_VERSION);
         \wp_enqueue_script('vgta-orchestrator-core-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator-core.js', [], VGTA_PLUGIN_VERSION, true);
         \wp_enqueue_script('vgta-orchestrator-onboarding-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator-onboarding.js', [], VGTA_PLUGIN_VERSION, true);
+        \wp_enqueue_script('vgta-orchestrator-layout-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator-layout.js', ['vgta-orchestrator-core-js'], VGTA_PLUGIN_VERSION, true);
         \wp_enqueue_script('vgta-orchestrator-renderers-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator-renderers.js', ['vgta-orchestrator-core-js'], VGTA_PLUGIN_VERSION, true);
         \wp_enqueue_script('vgta-orchestrator-review-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator-review.js', ['vgta-orchestrator-renderers-js'], VGTA_PLUGIN_VERSION, true);
         \wp_enqueue_script('vgta-orchestrator-steps-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator-steps.js', ['vgta-orchestrator-core-js'], VGTA_PLUGIN_VERSION, true);
         \wp_enqueue_script('vgta-orchestrator-memory-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator-memory.js', ['vgta-orchestrator-renderers-js'], VGTA_PLUGIN_VERSION, true);
         \wp_enqueue_script('vgta-orchestrator-forge-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator-forge.js', ['vgta-orchestrator-renderers-js'], VGTA_PLUGIN_VERSION, true);
-        \wp_enqueue_script('vgta-orchestrator-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator.js', ['vgta-orchestrator-core-js', 'vgta-orchestrator-renderers-js', 'vgta-orchestrator-review-js', 'vgta-orchestrator-steps-js', 'vgta-orchestrator-memory-js', 'vgta-orchestrator-forge-js'], VGTA_PLUGIN_VERSION, true);
+        \wp_enqueue_script('vgta-orchestrator-js', VGTA_PLUGIN_URL . 'assets/js/orchestrator.js', ['vgta-orchestrator-core-js', 'vgta-orchestrator-layout-js', 'vgta-orchestrator-renderers-js', 'vgta-orchestrator-review-js', 'vgta-orchestrator-steps-js', 'vgta-orchestrator-memory-js', 'vgta-orchestrator-forge-js'], VGTA_PLUGIN_VERSION, true);
         \wp_localize_script('vgta-orchestrator-js', 'vgtaConfig', [
             'ajaxUrl' => \admin_url('admin-ajax.php'),
             'nonce' => \wp_create_nonce(self::NONCE_ACTION),
             'models' => $this->getModelPayload(),
+            'modelAliases' => $this->getModelAliasPayload(),
             'roles' => $this->getRolePayload(),
             'customAgents' => $this->getCustomAgentPayload(),
         ]);
@@ -160,7 +165,13 @@ trait RuntimeTrait
         }
 
         $inactivePlugins = $this->getInactivePlugins();
-        $credentialSealed = \is_string(\get_option(self::OPTION_KEY_API_KEY, '')) && \get_option(self::OPTION_KEY_API_KEY, '') !== '';
+        
+        $groqSealed = \is_string(\get_option(self::OPTION_KEYS['groq'], '')) && \get_option(self::OPTION_KEYS['groq'], '') !== '';
+        $geminiSealed = \is_string(\get_option(self::OPTION_KEYS['gemini'], '')) && \get_option(self::OPTION_KEYS['gemini'], '') !== '';
+        $claudeSealed = \is_string(\get_option(self::OPTION_KEYS['claude'], '')) && \get_option(self::OPTION_KEYS['claude'], '') !== '';
+        $chatgptSealed = \is_string(\get_option(self::OPTION_KEYS['chatgpt'], '')) && \get_option(self::OPTION_KEYS['chatgpt'], '') !== '';
+        
+        $credentialSealed = $groqSealed || $geminiSealed || $claudeSealed || $chatgptSealed;
         $models = $this->getModelPayload();
 
         include VGTA_PLUGIN_DIR . 'templates/dashboard-view.php';
@@ -179,15 +190,55 @@ trait RuntimeTrait
         } catch (SecurityException $e) {
             $errorCode = $this->buildOpaqueErrorCode($e);
             $this->logInternalThrowable('SEC', $errorCode, $e);
-            \wp_send_json_error(['status' => 'error', 'message' => 'Request rejected for security reasons.', 'code' => $errorCode]);
+            $this->recordAjaxDiagnosticEvent($errorCode, $e, 'SEC');
+            \wp_send_json_error(['status' => 'error', 'message' => 'Request rejected for security reasons.', 'code' => $errorCode, 'diagnostic_available' => true]);
         } catch (StorageException $e) {
             $errorCode = $this->buildOpaqueErrorCode($e);
             $this->logInternalThrowable('STORAGE', $errorCode, $e);
-            \wp_send_json_error(['status' => 'error', 'message' => 'A server error occurred.', 'code' => $errorCode]);
+            $this->recordAjaxDiagnosticEvent($errorCode, $e, 'STORAGE');
+            \wp_send_json_error(['status' => 'error', 'message' => 'A server error occurred.', 'code' => $errorCode, 'diagnostic_available' => true]);
         } catch (\Throwable $e) {
             $errorCode = $this->buildOpaqueErrorCode($e);
             $this->logInternalThrowable('FATAL', $errorCode, $e);
-            \wp_send_json_error(['status' => 'error', 'message' => 'Critical system fault.', 'code' => $errorCode]);
+            $this->recordAjaxDiagnosticEvent($errorCode, $e, 'FATAL');
+            \wp_send_json_error(['status' => 'error', 'message' => 'Critical system fault.', 'code' => $errorCode, 'diagnostic_available' => true]);
+        }
+    }
+
+
+    private function recordAjaxDiagnosticEvent(string $errorCode, \Throwable $e, string $scope): void
+    {
+        try {
+            $pluginSlugRaw = isset($_POST['plugin_slug']) ? (string) \wp_unslash($_POST['plugin_slug']) : '';
+            $pluginSlug = $pluginSlugRaw !== '' ? $this->sanitizePluginSlug($pluginSlugRaw) : '';
+            $action = isset($_POST['action']) ? \sanitize_key((string) \wp_unslash($_POST['action'])) : 'unknown';
+            $event = [
+                'id' => \hash('sha256', $errorCode . '|' . \microtime(true) . '|' . \bin2hex(\random_bytes(8))),
+                'created_at' => \gmdate('c'),
+                'pipeline_run_id' => $this->sanitizeMemoryId(isset($_POST['session_id']) ? (string) \wp_unslash($_POST['session_id']) : ''),
+                'step_index' => 0,
+                'loop_index' => 0,
+                'role' => 'Ajax',
+                'model' => 'system',
+                'error_code' => $errorCode,
+                'error_scope' => $scope,
+                'error_class' => \get_class($e),
+                'error_message' => \substr($e->getMessage(), 0, 600),
+                'error_file' => \basename($e->getFile()),
+                'error_line' => $e->getLine(),
+                'public_message' => $scope === 'SEC' ? 'Request rejected for security reasons.' : 'A server error occurred.',
+                'context_hash' => \hash('sha256', $action . '|' . $pluginSlug),
+                'action' => $action,
+                'payload_bytes' => \strlen((string) \json_encode($_POST, \JSON_INVALID_UTF8_SUBSTITUTE)),
+                'memory_bytes' => $this->getMemoryStoreSize($pluginSlug),
+                'rejected_writes' => [],
+            ];
+            $this->appendErrorEvent($pluginSlug, $event);
+            if ($pluginSlug !== '') {
+                $this->appendErrorEvent('', $event);
+            }
+        } catch (\Throwable $diagnosticFailure) {
+            $this->logInternalThrowable('DIAGNOSTIC', $this->buildOpaqueErrorCode($diagnosticFailure), $diagnosticFailure);
         }
     }
 

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: VGTAstra Agent System
  * Description: Zero-dependency WordPress AI assistant system with live chat, Groq reasoning pipelines, encrypted vault storage, and safe plugin patch staging.
- * Version: 1.4.0-beta.1
+ * Version: 1.4.0-beta.5
 * Author URI:        https://visiongaiatechnology.de
  * License:           AGPLv3
  * License URI:       https://www.gnu.org/licenses/agpl-3.0.html
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 
 define('VGTA_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('VGTA_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('VGTA_PLUGIN_VERSION', '1.4.0-beta.1');
+define('VGTA_PLUGIN_VERSION', '1.4.0-beta.5');
 
 require_once VGTA_PLUGIN_DIR . 'includes/class-vgta-exceptions.php';
 require_once VGTA_PLUGIN_DIR . 'includes/class-vgta-crypto-vault.php';
@@ -41,6 +41,9 @@ require_once VGTA_PLUGIN_DIR . 'includes/trait-vgta-agent-registry.php';
 require_once VGTA_PLUGIN_DIR . 'includes/trait-vgta-grounding-broker.php';
 require_once VGTA_PLUGIN_DIR . 'includes/trait-vgta-validation.php';
 require_once VGTA_PLUGIN_DIR . 'includes/trait-vgta-groq.php';
+require_once VGTA_PLUGIN_DIR . 'includes/trait-vgta-gemini.php';
+require_once VGTA_PLUGIN_DIR . 'includes/trait-vgta-claude.php';
+require_once VGTA_PLUGIN_DIR . 'includes/trait-vgta-openai.php';
 require_once VGTA_PLUGIN_DIR . 'includes/class-vgta-orchestrator.php';
 
 new \VGTAstra\AgentSystem\AgenticOrchestrator();

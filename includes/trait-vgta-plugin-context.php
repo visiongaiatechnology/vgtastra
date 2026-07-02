@@ -31,12 +31,23 @@ trait PluginContextTrait
     /**
      * @return array{root:string,single_file:?string}
      */
+    private function resolveDraftPluginScope(): array
+    {
+        $pluginBase = \realpath(WP_PLUGIN_DIR);
+        if ($pluginBase === false || !\is_dir($pluginBase)) {
+            $this->throwTypedException('Plugin storage root unavailable.', 'storage');
+        }
+
+        return ['root' => $pluginBase, 'single_file' => null];
+    }
+
+    /**
+     * @return array{root:string,single_file:?string}
+     */
 
     private function resolveInactivePluginScope(string $pluginSlug): array
     {
-        if ($pluginSlug === '' || \preg_match('/\A[A-Za-z0-9._\-\/]+\.php\z/', $pluginSlug) !== 1) {
-            $this->throwTypedException('Plugin path validation failed.', 'security');
-        }
+        $pluginSlug = $this->sanitizePluginSlug($pluginSlug);
 
         $inactivePlugins = $this->getInactivePlugins();
         if (!isset($inactivePlugins[$pluginSlug])) {
